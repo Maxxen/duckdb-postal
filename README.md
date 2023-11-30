@@ -1,18 +1,24 @@
-# WIP Disclaimer
-This template is currently work-in-progress. Feel free to play around with it and give us feedback. Note also that this template depends on a development version of DuckDB. Follow https://duckdb.org/news for more information on official launch.
+# Quack
 
-# DuckDB Extension Template
-The main goal of this template is to allow users to easily develop, test and distribute their own DuckDB extension.
+This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
 
-## Getting started
-First step to getting started is to create your own repo from this template by clicking `Use this template`. Then clone your new repository using 
-```sh
-git clone --recurse-submodules https://github.com/<you>/<your-new-extension-repo>.git
-```
-Note that `--recurse-submodules` will ensure the correct version of duckdb is pulled allowing you to get started right away.
+---
+
+This extension, Quack, allow you to ... <extension_goal>.
+
 
 ## Building
-To build the extension:
+### Managing dependencies
+DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the [installation instructions](https://vcpkg.io/en/getting-started) or just run the following:
+```shell
+git clone https://github.com/Microsoft/vcpkg.git
+./vcpkg/bootstrap-vcpkg.sh
+export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
+```
+Note: VCPKG is only required for extensions that want to rely on it for dependency management. If you want to develop an extension without dependencies, or want to do your own dependency management, just skip this step. Note that the example extension uses VCPKG to build with a dependency for instructive purposes, so when skipping this step the build may not work without removing the dependency.
+
+### Build steps
+Now to build the extension, run:
 ```sh
 make
 ```
@@ -20,18 +26,18 @@ The main binaries that will be built are:
 ```sh
 ./build/release/duckdb
 ./build/release/test/unittest
-./build/release/extension/<extension_name>/<extension_name>.duckdb_extension
+./build/release/extension/postal/postal.duckdb_extension
 ```
-- `duckdb` is the binary for the duckdb shell with the extension code automatically loaded. 
+- `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
 - `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
-- `<extension_name>.duckdb_extension` is the loadable binary as it would be distributed.
+- `postal.duckdb_extension` is the loadable binary as it would be distributed.
 
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `quack()` that takes a string arguments and returns a string:
+Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `postal()` that takes a string arguments and returns a string:
 ```
-D select quack('Jane') as result;
+D select postal('Jane') as result;
 ┌───────────────┐
 │    result     │
 │    varchar    │
@@ -46,37 +52,35 @@ Different tests can be created for DuckDB extensions. The primary way of testing
 make test
 ```
 
-## Getting started with your own extension
-After creating a repository from this template, the first step is to name your extension. To rename the extension, run:
-```
-python3 ./scripts/set_extension_name.py <extension_name_you_want>
-```
-Feel free to delete the script after this step.
+### Installing the deployed binaries
+To install your extension binaries from S3, you will need to do two things. Firstly, DuckDB should be launched with the
+`allow_unsigned_extensions` option set to true. How to set this will depend on the client you're using. Some examples:
 
-Now you're good to go! After a (re)build, you should now be able to use your duckdb extension:
-```
-./build/release/duckdb
-D select <extension_name_you_chose>('Jane') as result;
-┌─────────────────────────────────────┐
-│                result               │
-│               varchar               │
-├─────────────────────────────────────┤
-│ <extension_name_you_chose> Jane 🐥  │
-└─────────────────────────────────────┘
+CLI:
+```shell
+duckdb -unsigned
 ```
 
-For inspiration/examples on how to extend DuckDB in a more meaningful way, check out the in-tree [extensions](https://github.com/duckdb/duckdb/tree/master/extension) (or in your `duckdb` submodule) and the out-of-tree extensions in [duckdblabs](https://github.com/duckdblabs)! 
+Python:
+```python
+con = duckdb.connect(':memory:', config={'allow_unsigned_extensions' : 'true'})
+```
 
-## Distributing your extension
-Easy distribution of extensions built with this template is facilitated using a similar process used by DuckDB itself. Binaries are generated for various versions/platforms allowing duckdb to automatically install the correct binary.
+NodeJS:
+```js
+db = new duckdb.Database(':memory:', {"allow_unsigned_extensions": "true"});
+```
 
-This step requires that you pass the following 4 parameters to your github repo as action secrets:
+Secondly, you will need to set the repository endpoint in DuckDB to the HTTP url of your bucket + version of the extension
+you want to install. To do this run the following SQL query in DuckDB:
+```sql
+SET custom_extension_repository='bucket.s3.eu-west-1.amazonaws.com/<your_extension_name>/latest';
+```
+Note that the `/latest` path will allow you to install the latest extension version available for your current version of
+DuckDB. To specify a specific version, you can pass the version instead.
 
-| secret name   | description                         |
-| ------------- | ----------------------------------- |
-| S3_REGION     | s3 region holding your bucket       |
-| S3_BUCKET     | the name of the bucket to deploy to |
-| S3_DEPLOY_ID  | the S3 key id                       |
-| S3_DEPLOY_KEY | the S3 key secret                   |
-
-After setting these variables, all pushes to master will trigger a new (dev) release.
+After running these steps, you can install and load your extension using the regular INSTALL/LOAD commands in DuckDB:
+```sql
+INSTALL postal
+LOAD postal
+```
